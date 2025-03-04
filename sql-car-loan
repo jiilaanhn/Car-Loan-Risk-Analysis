@@ -1,0 +1,66 @@
+SELECT * FROM `group-challange-1.loan.car_loan` LIMIT 5;
+
+-- check how much transaction month
+SELECT
+  distinct(transaction_month)
+FROM `group-challange-1.loan.car_loan`;
+
+-- 1.1 Check for Missing & Duplicates
+SELECT
+  COUNT(*) AS total_rows,
+  COUNT(DISTINCT loan_id) AS unique_loans,
+  COUNT(*) - COUNT(DISTINCT loan_id) AS duplicate_loans
+FROM `group-challange-1.loan.car_loan`;
+
+-- 1.2 Check for Missing Data
+SELECT
+  SUM(CASE WHEN sku_type IS NULL THEN 1 ELSE 0 END) AS missing_sku_type,
+  SUM(CASE WHEN financing_amount IS NULL THEN 1 ELSE 0 END) AS missing_financing_amount,
+  SUM(CASE WHEN repayment_status IS NULL THEN 1 ELSE 0 END) AS missing_repayment_status
+FROM `group-challange-1.loan.car_loan`;
+
+-- 2.1 How does Financing Amount affect Total Margin? (SQL) // Default Rate (%)
+SELECT
+  sku_type,
+  financing_amount,
+  COUNT(*) AS total_margin,
+  SUM(CASE WHEN repayment_status = "defaulted" THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS default_rate
+FROM `group-challange-1.loan.car_loan`
+GROUP BY financing_amount, sku_type
+ORDER BY financing_amount;
+
+-- 2.1.2 Total margin vs financing_amount (total profit or loss for each financing amount range). Find where the margin is highest for each sku_type & financing_amount. We Normalize by Average Margin per Loan
+SELECT
+  sku_type,
+  financing_amount,
+  COUNT(margin) AS cnt_margin,
+  SUM(margin) AS sum_margin,
+  ROUND(SUM(margin)/COUNT(margin)) AS avg_margin
+FROM `group-challange-1.loan.car_loan`
+GROUP BY sku_type, financing_amount
+ORDER BY sku_type, avg_margin DESC;
+
+-- ranking avg_margin & Default Rate (%) II for each loan
+SELECT 
+    sku_type, 
+    financing_amount, 
+    COUNT(*) AS cnt_margin, 
+    SUM(margin) AS sum_margin, 
+    (SUM(margin) / COUNT(*)) AS avg_margin,
+    CONCAT(ROUND(COUNT(CASE WHEN repayment_status = 'defaulted' THEN 1 ELSE NULL END) * 100.0 / COUNT(*),2), '%') AS default_rate
+FROM `group-challange-1.loan.car_loan`
+GROUP BY sku_type, financing_amount
+ORDER BY sku_type, avg_margin DESC;
+
+-- Calculate Risk-Adjusted Margin for Each Financing Amount
+SELECT 
+    sku_type, 
+    financing_amount, 
+    COUNT(*) AS cnt_margin, 
+    SUM(margin) AS sum_margin, 
+    ROUND(SUM(margin) / COUNT(*)) AS avg_margin,
+    CONCAT(ROUND(COUNT(CASE WHEN repayment_status = 'defaulted' THEN 1 ELSE NULL END) * 100.0 / COUNT(*),2), '%') AS default_rate,
+    ROUND((SUM(margin) / COUNT(*)) * (1 - (COUNT(CASE WHEN repayment_status = 'defaulted' THEN 1 ELSE NULL END) * 1.0 / COUNT(*)))) AS risk_adjusted_margin
+FROM `group-challange-1.loan.car_loan`
+GROUP BY sku_type, financing_amount
+ORDER BY sku_type, avg_margin DESC;
